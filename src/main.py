@@ -5,8 +5,9 @@ import classification_validation
 class Main:
 
     def run(self):
+        print("====Benvenuti in CineLogic===\n")
         while True:
-            print("\nSeleziona un'operazione:\n1) Recommender System\n2) Interagisci con la KB\n3) Interagisci con l'ontologia\n4) Esci\n")
+            print("\nSei nel menu' principale\nSeleziona un'operazione:\n1) Recommender System\n2) Interagisci con la KB\n3) Interagisci con l'ontologia\n4) Esci\n")
             choice = input("Inserisci un valore: ")
 
             if choice == '1':
