@@ -6,7 +6,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.stats import pearsonr
 
 def get_info():
-    print("Inseisci i dati con la lettera maiuscola iniziale\n")
+    print("Inserisci i dati con la lettera maiuscola iniziale\n")
 
     title = input("Inserisci il titolo: \n")
     genre = input("Inserisci il genere: \n")
