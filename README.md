@@ -11,7 +11,7 @@ Gruppo di Lavoro:
 
 ## Installazione dei requisiti
 E' innanzitutto necessario scaricare tutti i requisiti per l'esecuzione del progetto. 
-Da linea di comando, spostarsi nella directory principale del progetto ed esefuireil comando:
+Da linea di comando, spostarsi nella directory principale del progetto ed eseguire comando:
 
 ```pip install -r requirements.txt```
 
