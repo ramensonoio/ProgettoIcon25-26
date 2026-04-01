@@ -1,95 +1,152 @@
 import numpy as np
 import pandas as pd
-import sklearn
-
 from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.stats import pearsonr
 
+
 def get_info():
-    print("Inserisci i dati con la lettera maiuscola iniziale\n")
+    print("--- Ricerca Film ---")
+    print("Inserisci i dati del film che ti interessa:\n")
 
-    title = input("Inserisci il titolo: \n")
-    genre = input("Inserisci il genere: \n")
-    year = input("Inserisci l'anno di uscita: \n")
+    # .strip() rimuove spazi vuoti accidentali
+    # .title() mette in automatico l'iniziale maiuscola a ogni parola
+    title = input("Inserisci il titolo: ").strip().title()
+    genre = input("Inserisci il genere (es. Action, Scifi): ").strip().title()
 
-    #creiamo un dataframe temporaneo che contiene i dati inseriti dall'utente
-    user_data = pd.DataFrame({'title': title, 'genre': genre, 'year': year}, index=[0])
+    # Per l'anno usiamo un blocco try-except per assicurarci che si inserisca un numero
+    while True:
+        try:
+            year_input = input("Inserisci l'anno di uscita: ").strip()
+            year = int(year_input)  # Converto in intero!
+            break
+        except ValueError:
+            print("Errore: L'anno deve essere un numero intero (es. 2015). Riprova.")
+
+    # Creiamo il dataframe temporaneo
+    user_data = pd.DataFrame({
+        'title': title,
+        'genre': genre,
+        'year': year
+    }, index=[0])
+
     return user_data
 
+
+from sklearn.metrics.pairwise import cosine_similarity
+
+
 def construct_recommendation(filename, user_data):
+    # Caricamento Dati
     movie_data = pd.read_csv(filename)
-    movie_data = movie_data[['title', 'description', 'release_year', 'runtime', 'production_countries', 'imdb_score', 'tmdb_score', 'genre', 'streaming_service', 'actors']].copy()
+    colonne_utili = ['title', 'description', 'release_year', 'runtime', 'production_countries', 'imdb_score',
+                     'tmdb_score', 'genre', 'streaming_service', 'actors']
+    movie_data = movie_data[colonne_utili].copy()
 
-    #controllo se l'elemento indicato dall'utente è presente o meno nel dataset.
-    #se non è presente lo aggiungo e memorizzo il suo indice.
+    # Controllo se il film esiste
+    user_title = user_data['title'].iloc[0]
 
-    control = 0
-
-    for title in movie_data['title']:
-        if user_data['title'][0] != title:
-            index = 0
-            control = 1
-        else:
-            index = movie_data.index[movie_data['title'] == title].values[0]
-            control = 0
-            break
-
-    if control == 1:
+    if user_title in movie_data['title'].values:
+        # Trovo l'indice del film esistente
+        target_index = movie_data.index[movie_data['title'] == user_title].tolist()[0]
+    else:
+        # Aggiungo il nuovo film IN CIMA (indice 0)
         movie_data = pd.concat([user_data, movie_data], ignore_index=True)
+        target_index = 0
 
-    movie_data['all_content'] = (
-        movie_data['title'].astype(str) + ';' +
-        movie_data['release_year'].astype(str) + ';' +
-        movie_data['runtime'].astype(str) + ';' +
-        movie_data['production_countries'].astype(str) + ';' +
-        movie_data['genre'].astype(str)
-    )
+    # Creazione del contenuto testuale
+    # Riempiamo i valori mancanti con una stringa vuota per non inquinare il testo
+    colonne_testo = ['title', 'release_year', 'runtime', 'production_countries', 'genre']
+    movie_data[colonne_testo] = movie_data[colonne_testo].fillna('')
 
-    #vettorizzazione
+    # Metodo per concatenare colonne
+    movie_data['all_content'] = movie_data[colonne_testo].astype(str).agg(';'.join, axis=1)
+
+    # Vettorizzazione
     tfidf_matrix = vectorize_data(movie_data)
-    tfidf_matrix_array = tfidf_matrix.toarray()
 
-    print("\nInizio ricerca dei film...")
+    print("\nInizio calcolo delle similarità...")
 
-    indices = pd.Series(movie_data['title'].index)
-    id = indices[index]
+    # Calcolo delle Similarità
+    # Estraiamo il vettore del film target
+    target_vector = tfidf_matrix[target_index]
 
-    correlation = []
+    # cosine_similarity calcola istantaneamente la distanza tra il target e TUTTI gli altri
+    # Restituisce un array di punteggi (da 0 a 1)
+    similarities = cosine_similarity(target_vector, tfidf_matrix).flatten()
 
-    for i in range(len(tfidf_matrix_array)):
-        correlation.append(pearsonr(tfidf_matrix_array[id], tfidf_matrix_array[i]))
-    correlation = list(enumerate(correlation))
-    sorted_corr = sorted(correlation, reverse=True, key=lambda x: x[1])[1:6]
-    movie_index = [i[0] for i in sorted_corr]
+    # Estrazione dei Top 5
+    # enumerate abbina l'indice di riga al punteggio: [(0, score), (1, score), ...]
+    corr_list = list(enumerate(similarities))
 
-    print(f"Movie_Index trovato: {movie_index}")
+    # Ordiniamo per punteggio (x[1]) decrescente.
+    # Prendiamo [1:6] per saltare il primo risultato (il film stesso, score=1.0)
+    sorted_corr = sorted(corr_list, key=lambda x: x[1], reverse=True)[1:6]
 
-    print("\n[5 film più simili a quello inserito sono stati trovati!]")
-    print("\nPassaggio all'analisi del modello...")
+    # Estraiamo solo gli indici
+    movie_index = [item[0] for item in sorted_corr]
+
+    print(f"Movie_Index trovati: {movie_index}")
+    print("\n[5 film più simili trovati con successo!]")
+    print("Passaggio all'analisi del modello...")
 
     return movie_index
 
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+
 def vectorize_data(movie_data):
-    vectorizer = TfidfVectorizer(analyzer='word')
+    # Inizializzo
+    vectorizer = TfidfVectorizer(
+        analyzer='word',
+        stop_words='english',  # Ignora "the", "a", "is", ecc.
+        # Legge sia parole singole ("Action") che coppie ("Science Fiction")
+        ngram_range=(1, 2)
+    )
+
+    # Addestro e trasformo il testo in matrice matematica
     tfidf_matrix = vectorizer.fit_transform(movie_data['all_content'])
+
+    # Restituisco la matrice sparsa
     return tfidf_matrix
 
+
 def get_recommendation():
-    print("\nBENVENUTO NEL RECOMMENDER SYSTEM\n")
-    print("Digita le caratteristiche del film su cui vuoi che si avii la raccomandazione")
+    print("\n=== BENVENUTO NEL RECOMMENDER SYSTEM ===\n")
+    print("Digita le caratteristiche del film \n su cui vuoi che si avvii la raccomandazione.")
 
-    user_data = get_info()
+    # Salvo il percorso in una variabile per comodità e pulizia
+    dataset_path = '../dataset/pre-processato/pre_processed_dataset.csv'
 
-    while(True):
-        print("\nQuesti sono i dati del film che hai inserito: \n")
-        print(user_data.head())
+    # Questo ciclo serve SOLO per l'inserimento e la conferma
+    while True:
+        # 1. Chiedo i dati
+        user_data = get_info()
 
-        answer = input("\nÈ corretto? (y/n): ")
-        if answer == 'n' or answer == 'N':
-            user_data = get_info()
-            movie_index = construct_recommendation('../dataset/pre-processato/pre_processed_dataset.csv', user_data)
+        # 2. Li mostro all'utente
+        print("\nQuesti sono i dati del film che hai inserito:")
+        print(user_data)
+
+        # 3. Chiedo conferma
+        answer = input("\nÈ corretto? (y/n): ").strip().lower()
+
+        # 4. Controllo la risposta
+        if answer == 'y':
+            print("\nPerfetto! Dati confermati.")
+            break  # Interrompe il ciclo while e procede oltre!
+
+        elif answer == 'n':
+            print("\nNessun problema, reinseriamo i dati da capo.")
+            # Non mettiamo 'break', quindi il ciclo ricomincia e richiama get_info()!
+
         else:
-            movie_index = construct_recommendation('../dataset/pre-processato/pre_processed_dataset.csv', user_data)
-            print("\nEcco Movie_Index: \n", movie_index)
+            print("\nRisposta non riconosciuta. Per favore, digita 'y' per confermare o 'n' per annullare.")
+            # Anche qui niente 'break', quindi gli richiederà i dati
 
-        return movie_index
+    print("\nRicerca delle raccomandazioni in corso... Attendi...")
+
+    movie_index = construct_recommendation(dataset_path, user_data)
+
+    print("\nEcco i Movie_Index trovati:\n", movie_index)
+
+    return movie_index

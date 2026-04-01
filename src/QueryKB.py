@@ -1,4 +1,5 @@
 from swipl_bootstrap import configure_swipl
+
 configure_swipl()
 
 from pyswip import Prolog
@@ -6,160 +7,160 @@ from pyswip import Prolog
 
 def main():
     prolog = Prolog()
-    prolog.consult('KB.pl')  # Assicurati che questo carichi correttamente la tua KB
-    film_ids = []  # Lista per memorizzare i risultati della ricerca
+    print("Avvio del motore Prolog e caricamento della Knowledge Base...")
+    prolog.consult('KB.pl')
+
+    film_ids = []
 
     while True:
         try:
-            choice = int(input("\nScegliere quale funzione eseguire:\n"
-                               "1) Trova un film date determinate caratteristiche\n"
-                               "2) Sulla base delle preferenze dell'utente, trovare la piattaforma migliore per i film selezionati.\n"
-                               "3) Esci\n"
-                               "\nInserisci un valore: "))
+            menu = """
+=== CINELOGIC: KNOWLEDGE BASE ===
+1) Trova film in base alle tue preferenze
+2) Trova la migliore piattaforma di streaming per i film trovati
+3) Esci
+Inserisci un valore (1-3): """
+            choice = int(input(menu))
+
             if choice == 1:
                 film_ids = query_filmstreaming(prolog)
             elif choice == 2:
                 if film_ids:
                     find_best_streaming_platform(prolog, film_ids)
                 else:
-                    print("Esegui prima una ricerca di film (opzione 1).")
+                    print("\nAttenzione: Esegui prima una ricerca di film (opzione 1).")
             elif choice == 3:
-                print("Uscita dal programma.")
+                print("\nUscita dal programma. A presto!")
                 break
             else:
-                print("Input non valido. Utilizzare solo 1, 2 o 3.")
+                print("\nErrore: Input non valido. Scegli 1, 2 o 3.")
         except ValueError:
-            print("Input non valido. Inserisci un numero.")
+            print("\nErrore: Devi inserire un numero intero.")
 
 
 def query_filmstreaming(prolog):
     uscita = None
     genere = None
     durata = None
-    film_ids = []  # Lista per salvare gli ID dei film trovati
+    film_ids = []
 
-    # Gestione del periodo
+    # 1. Periodo
     while uscita is None:
         try:
-            uscita_input = int(input("\nInserisci il periodo relativo all'anno di uscita del film\n"
-                                     "1) recente\n2) tra 2000 e 2010\n3) pre 2000\n"))
-            if uscita_input == 1:
-                uscita = "recente"
-            elif uscita_input == 2:
-                uscita = "tra_2000_2010"
-            elif uscita_input == 3:
-                uscita = "pre_2000"
-            else:
-                print("Input non valido. Utilizzare solo 1, 2 o 3.")
+            uscita_input = int(
+                input("\nPeriodo di uscita:\n1) Recente (>2010)\n2) Tra 2000 e 2010\n3) Pre 2000\nScegli: "))
+            mappa_uscita = {1: "recente", 2: "tra_2000_2010", 3: "pre_2000"}
+            uscita = mappa_uscita.get(uscita_input)
+            if not uscita: print("Input non valido.")
         except ValueError:
-            print("Input non valido. Inserisci un numero.")
+            print("Inserisci un numero.")
 
-    # Gestione del genere
+    # 2. Genere
+    genres = ["western", "scifi", "romance", "drama", "horror", "thriller", "comedy", "crime",
+              "documentation", "family", "action", "fantasy", "animation", "music", "history",
+              "war", "european", "sport", "reality"]
     while genere is None:
         try:
-            genere_input = int(input("Inserisci il genere cui vorresti appartenga il film\n"
-                                     "1) western\n2) scifi\n3) romance\n4) drama\n5) horror\n6) thriller\n7) comedy\n"
-                                     "8) crime\n9) documentation\n10) family\n11) action\n12) fantasy\n13) animation\n"
-                                     "14) music\n15) history\n16) war\n17) european\n18) sport\n19) reality\n"))
-            genres = ["western", "scifi", "romance", "drama", "horror", "thriller", "comedy", "crime",
-                      "documentation", "family", "action", "fantasy", "animation", "music", "history",
-                      "war", "european", "sport", "reality"]
-            if 1 <= genere_input <= 19:
+            print("\nGeneri disponibili:")
+            for i, g in enumerate(genres, 1):
+                print(f"{i}) {g.capitalize()}")
+            genere_input = int(input("Scegli il numero del genere: "))
+
+            if 1 <= genere_input <= len(genres):
                 genere = genres[genere_input - 1]
             else:
-                print("Input non valido. Utilizzare solo da 1 a 19.")
+                print(f"Input non valido. Scegli tra 1 e {len(genres)}.")
         except ValueError:
-            print("Input non valido. Inserisci un numero.")
+            print("Inserisci un numero.")
 
-    # Gestione della durata
+    # 3. Durata
     while durata is None:
         try:
-            durata_input = int(input("Inserisci la durata del film\n1) breve\n2) media\n3) lunga\n"))
-            if durata_input == 1:
-                durata = "breve"
-            elif durata_input == 2:
-                durata = "media"
-            elif durata_input == 3:
-                durata = "lunga"
-            else:
-                print("Input non valido. Utilizzare solo 1, 2 o 3.")
+            durata_input = int(
+                input("\nDurata:\n1) Breve (<60 min)\n2) Media (60-90 min)\n3) Lunga (>90 min)\nScegli: "))
+            mappa_durata = {1: "breve", 2: "media", 3: "lunga"}
+            durata = mappa_durata.get(durata_input)
+            if not durata: print("Input non valido.")
         except ValueError:
-            print("Input non valido. Inserisci un numero.")
+            print("Inserisci un numero.")
 
-    # Creazione della query
-    query = f"{uscita}_{genere}_{durata}(ID)"  # Crea la query dinamica in base agli input
+    query = f"{uscita}_{genere}_{durata}(ID), title(ID, Titolo)"
 
-    # Esecuzione della query e gestione dei risultati
+    print("\nRicerca nella Knowledge Base in corso...")
     try:
-        results = list(prolog.query(query))  # Esegui la query su Prolog
-        if len(results) == 0:
-            print("Con questi filtri non vi sono risultati.")
-        else:
-            ids_set = set()  # Creiamo un set per eliminare duplicati
-            print("Gli ID dei film che rispettano i filtri sono:")
-            for soln in results:
-                if soln["ID"] not in ids_set:  # Controlliamo se l'ID è già stato stampato
-                    print(soln["ID"])  # Stampa l'ID del film
-                    film_ids.append(soln["ID"])  # Aggiungiamo l'ID alla lista
-                    ids_set.add(soln["ID"])  # Aggiungiamo l'ID al set per evitare duplicati
-    except Exception as e:
-        print(f"Errore durante l'esecuzione della query: {e}")
+        results = list(prolog.query(query))
 
-    return film_ids  # Restituiamo gli ID dei film trovati
+        if not results:
+            print("Nessun film trovato con questi filtri.")
+        else:
+            ids_set = set()
+            print("\n=== FILM TROVATI ===")
+            for soln in results:
+                if soln["ID"] not in ids_set:
+                    print(f"- {soln['Titolo'].title()} (ID: {soln['ID']})")
+                    film_ids.append(soln["ID"])
+                    ids_set.add(soln["ID"])
+    except Exception as e:
+        print(f"Errore Prolog: {e}")
+
+    return film_ids
 
 
 def find_best_streaming_platform(prolog, film_ids):
-    platform_count = {}
     price_filters = []
 
     # Selezione del prezzo
     while not price_filters:
         try:
-            price_input = int(input("Seleziona il tipo di sottoscrizione:\n"
-                                    "1) economica\n2) media\n3) costosa\n"))
+            price_input = int(input("\nSeleziona il tuo budget per lo streaming:\n"
+                                    "1) Economica (< 9.99)\n2) Media (fino a 9.99)\n3) Costosa (qualsiasi prezzo)\nScegli: "))
             if price_input == 1:
-                price_filters = ["prezzo_economy"]  # Solo economico
+                price_filters = ["prezzo_economy"]
             elif price_input == 2:
-                price_filters = ["prezzo_economy", "prezzo_medio"]  # Economico o medio
+                price_filters = ["prezzo_economy", "prezzo_medio"]
             elif price_input == 3:
-                price_filters = ["prezzo_economy", "prezzo_medio", "prezzo_costoso"]  # Economico, medio o costoso
+                price_filters = ["prezzo_economy", "prezzo_medio", "prezzo_costoso"]
             else:
-                print("Input non valido. Utilizzare solo 1, 2 o 3.")
+                print("Input non valido.")
         except ValueError:
-            print("Input non valido. Inserisci un numero.")
+            print("Inserisci un numero.")
 
-    # Iteriamo su tutti gli ID dei film trovati e cerchiamo su quale piattaforma si trovano
+    platform_count = {}
+
+    print("\nAnalisi delle piattaforme in corso...")
     for film_id in film_ids:
-        query = f"streaming_service({film_id}, Piattaforma)"  # Usare il predicato corretto per la piattaforma
+        # Per ogni film, cerco su che piattaforma si trova
+        query_piattaforma = f"streaming_service({film_id}, Piattaforma)"
+
         try:
-            results = list(prolog.query(query))
+            results = list(prolog.query(query_piattaforma))
             for result in results:
                 piattaforma = result["Piattaforma"]
 
-                # Verifichiamo il prezzo della piattaforma con uno dei predicati selezionati
+                # Controllo se il film rispetta almeno uno dei filtri di prezzo
                 price_match = False
                 for price_filter in price_filters:
-                    price_query = f"{price_filter}({film_id})"
-                    price_results = list(prolog.query(price_query))
-                    if price_results:  # Se il film è disponibile per quel tipo di sottoscrizione
+                    check_query = f"{price_filter}({film_id})"
+                    # Se la lista tornata non è vuota, il fatto è vero
+                    if list(prolog.query(check_query)):
                         price_match = True
                         break
 
                 if price_match:
-                    if piattaforma in platform_count:
-                        platform_count[piattaforma] += 1
-                    else:
-                        platform_count[piattaforma] = 1
-        except Exception as e:
-            print(f"Errore durante l'esecuzione della query per {film_id}: {e}")
+                    platform_count[piattaforma] = platform_count.get(piattaforma, 0) + 1
 
+        except Exception as e:
+            print(f"Errore query per ID {film_id}: {e}")
+
+    # Risultato finale
     if platform_count:
-        # Troviamo la piattaforma con il maggior numero di film
         best_platform = max(platform_count, key=platform_count.get)
-        print(f"La migliore piattaforma consigliata è: {best_platform}")
-        print(f"Numero di film disponibili su {best_platform}: {platform_count[best_platform]}")
+        print("\n=== RISULTATO ===")
+        print(f"La piattaforma più consigliata per te è: **{best_platform.upper()}**")
+        print(
+            f"Contiene {platform_count[best_platform]} dei film che hai cercato ad un prezzo compatibile col tuo budget.")
     else:
-        print("Non è stato trovato nessun film su alcuna piattaforma con il prezzo selezionato.")
+        print("\nNessuna piattaforma offre questi film al prezzo selezionato.")
 
 
 if __name__ == "__main__":

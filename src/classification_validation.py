@@ -1,157 +1,161 @@
-import sklearn
 import pandas as pd
 import numpy as np
 
-from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.metrics import roc_auc_score
-from sklearn.metrics import classification_report
+from sklearn.metrics import roc_auc_score, classification_report
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import RandomizedSearchCV
-from sklearn.model_selection import RepeatedKFold
+from sklearn.model_selection import train_test_split, RandomizedSearchCV, RepeatedKFold
 
 from recommenderSystem import get_recommendation
-
-def RandomizedSearch(hyperparameters, X_train, y_train):
+def tune_knn_model(hyperparameters, X_train, y_train, n_iterazioni=20):
+    # Inizializzo il modello base
     knn = KNeighborsClassifier()
 
-    cvFold = RepeatedKFold(n_splits=10, n_repeats=3, random_state=1)
-    randomSearch = RandomizedSearchCV(estimator=knn, cv=cvFold, param_distributions=hyperparameters)
+    # Imposto la validazione incrociata
+    cv_fold = RepeatedKFold(n_splits=10, n_repeats=3, random_state=1)
 
-    best_model = randomSearch.fit(X_train, y_train)
-    return best_model
+    # Imposto la ricerca
+    random_search = RandomizedSearchCV(
+        estimator=knn,
+        cv=cv_fold,
+        param_distributions=hyperparameters,
+        n_iter=n_iterazioni,  # Numero di combinazioni casuali da provare
+        random_state=1  # Per riproducibilità
+    )
 
-def ModelEvaluation(y_test, y_pred, pred_prob):
-    print("Classification Report: \n", classification_report(y_test, y_pred))
+    # Addestro la ricerca
+    random_search.fit(X_train, y_train)
 
+    # Estraggo il miglior modello trovato e lo restituisco
+    best_knn = random_search.best_estimator_
+
+    return best_knn
+
+def evaluate_model(y_test, y_pred, pred_prob):
+    # Stampo il report di classificazione
+    print("Classification Report:\n")
+    print(classification_report(y_test, y_pred, zero_division=0.0))
+
+    # Calcolo il ROC AUC score
     roc_score = roc_auc_score(y_test, pred_prob, multi_class='ovr')
-    print("ROC Score: ", roc_score)
+
+    # Stampo il risultato
+    print(f"ROC Score: {roc_score:.4f}")  # Il .4f arrotonda a 4 cifre decimali
 
     return roc_score
 
-def HyperparametersSearch(X_train, X_test, y_train, y_test):
-    result = {}
-    n_neighbors = list(range(1, 30))
-    weights = ['uniform', 'distance']
-    metric = ['euclidean', 'manhattan', 'hamming']
 
-    hyperparameters = dict(metric=metric, weights=weights, n_neighbors=n_neighbors)
+def search_hyperparameters(X_train, y_train):
+    # Definisco lo spazio degli iperparametri
+    hyperparameters = {
+        'n_neighbors': list(range(1, 30)),
+        'weights': ['uniform', 'distance'],
+        'metric': ['euclidean', 'manhattan', 'hamming']
+    }
 
-    i = 0
-    while i < 15:
-        best_model = RandomizedSearch(hyperparameters, X_train, y_train)
-        bestweights = best_model.best_estimator_.get_params()['weights']
-        bestMetric = best_model.best_estimator_.get_params()['metric']
-        bestNeighbours = best_model.best_estimator_.get_params()['n_neighbors']
+    # Inizializzo il modello base e la validazione incrociata
+    knn = KNeighborsClassifier()
+    cv_fold = RepeatedKFold(n_splits=10, n_repeats=3, random_state=1)
 
-        knn = KNeighborsClassifier(n_neighbors=bestNeighbours, weights=bestweights, algorithm='auto', metric=bestMetric, metric_params=None, n_jobs=None)
-        knn.fit(X_train, y_train)
+    # Imposto la Randomized Search
+    random_search = RandomizedSearchCV(
+        estimator=knn,
+        cv=cv_fold,
+        param_distributions=hyperparameters,
+        n_iter=15,  # Proviamo 15 combinazioni diverse
+        random_state=1  # Per riproducibilità
+    )
 
-        pred_prob = knn.predict_proba(X_test)
+    # Addestro la ricerca sui soli dati di training
+    random_search.fit(X_train, y_train)
 
-        #valutiamo il nostro modello
-        roc_score = roc_auc_score(y_test, pred_prob, multi_class='ovr')
+    # Estraggo e restituisco direttamente il modello vincitore
+    return random_search.best_estimator_
 
-        result[i] = {'n_neighbors': bestNeighbours, 'metric': bestMetric, 'weights': bestweights, 'roc_score': roc_score}
-        i += 1
 
-    result = dict(sorted(result.items(), key=lambda x: x[1]['roc_score'], reverse=True))
+def compare_and_select_best_model(X_train, X_test, y_train, y_test):
 
-    first_e1 = list(result.keys())[0]
-    result = list(result[first_e1].values())
-    return result
+    print("\n--- COMPOSIZIONE MODELLO BASE ---")
+    # Uso i parametri di default espliciti per chiarezza
+    knn_base = KNeighborsClassifier(n_neighbors=5, weights='uniform')
+    knn_base.fit(X_train, y_train)
 
-def SearchingBestModelStats(X_train, X_test, y_train, y_test):
-    print("\n\nComposizione iniziale del modello con iper-parametri di base...")
-    knn = KNeighborsClassifier(n_neighbors=5, weights='uniform', algorithm='auto', p=2, metric='minkowski', metric_params=None, n_jobs=None)
-    knn.fit(X_train, y_train)
+    # Controllo visivo sui primi 5 elementi
+    print(f"Predizioni primi 5 elementi: {knn_base.predict(X_test)[0:5]}")
+    print(f"Valori effettivi:            {list(y_test[0:5])}")
 
-    print("\nPredizioni dei primi 5 elementi: ", knn.predict(X_test)[0:5], 'Valori effettivi: ', y_test[0:5])
+    print("\nValutazione del modello Base:")
+    y_pred_base = knn_base.predict(X_test)
+    pred_prob_base = knn_base.predict_proba(X_test)
+    evaluate_model(y_test, y_pred_base, pred_prob_base)
 
-    y_pred = knn.predict(X_test)
-    pred_prob = knn.predict_proba(X_test)
+    print("\n--- RICERCA IPERPARAMETRI (RANDOMIZED SEARCH) ---")
 
-    print("\nValutazione del modello...\n")
-    ModelEvaluation(y_test, y_pred, pred_prob)
+    best_knn = search_hyperparameters(X_train, y_train)
 
-    print("\nProviamo a migliorare il nostro modello determinando gli iper-parametri ottimali con 'Grid Search':\n")
+    # Stampo i parametri vincenti estraendoli dal modello
+    best_params = best_knn.get_params()
+    print(f"Best Weights: {best_params['weights']}")
+    print(f"Best Metric: {best_params['metric']}")
+    print(f"Best n_neighbors: {best_params['n_neighbors']}")
 
-    result = {}
-    result = HyperparametersSearch(X_train, X_test, y_train, y_test)
+    print("\nValutazione del modello Ottimizzato:")
+    y_pred_best = best_knn.predict(X_test)
+    pred_prob_best = best_knn.predict_proba(X_test)
+    evaluate_model(y_test, y_pred_best, pred_prob_best)
 
-    print("\nGRID SEARCH:\n")
+    print("\nModello ottimizzato pronto. Ora possiamo procedere alla fase di recommendation...")
 
-    bestweights = result[2]
-    print("Best Weights: ", bestweights)
+    return best_knn
 
-    bestmetric = result[1]
-    print("Best Metric: ", bestmetric)
-
-    bestNeighbours = result[0]
-    print("Best n_eighbours: ", bestNeighbours)
-
-    #ricomposizione del modello utilizzando i nuovi iper-parametri
-    print("\nRicomponiamo il modello utilizzando i nuovi iper-parametri: ")
-    knn = KNeighborsClassifier(n_neighbors=bestNeighbours, weights=bestweights, algorithm='auto', metric=bestmetric, metric_params=None, n_jobs=None)
-    knn.fit(X_train, y_train)
-
-    print("\nPredizione dei primi 5 elementi: ", knn.predict(X_test)[0:5], "Valori effettivi: ", y_test[0:5])
-    y_pred = knn.predict(X_test)
-    pred_prob = knn.predict_proba(X_test)
-
-    #valutiamo il nostro modello
-    ModelEvaluation(y_test, y_pred, pred_prob)
-
-    print("\nOra possiamo procede alla fase di recommandation...")
-
-    return knn
 
 def main_recommender():
+    # Caricamento Dati
     movie_data = pd.read_csv('../dataset/pre-processato/pre_processed_dataset.csv')
+    #creazione categoria star (media_voti)
+    movie_data['media_voti'] = (movie_data['imdb_score'] + movie_data['tmdb_score']) / 2
 
-    #creiamo la categoria star
-    movie_data['star'] = ((movie_data['imdb_score'] + movie_data['tmdb_score']) / 2)
+    # pd.cut divide i dati in fasce. I bin sono i limiti: [0, 5, 7.5, 10]
+    # labels sono i valori da assegnare a quelle fasce: [1, 2, 3]
+    movie_data['star'] = pd.cut(
+        movie_data['media_voti'],
+        bins=[0, 5.0, 7.5, 10.0],
+        labels=[1, 2, 3],
+        include_lowest=True
+    )
 
-    #assegnamo i dati alla sezione corretta
-    movie_data.loc[(movie_data['star'] >= 7.5), ['star']] = 5
-    movie_data.loc[(movie_data['star'] < 7.5) & (movie_data['star'] >= 5), 'star'] = 4
-    movie_data.loc[(movie_data['star'] < 5) & (movie_data['star'] >= 3), 'star'] = 3
-    movie_data.loc[(movie_data['star'] < 3) & (movie_data['star'] >= 1.5), 'star'] = 2
-    movie_data.loc[(movie_data['star'] < 1.5)] = 1
+    # Preparazione Variabili
+    features = ['runtime']
 
-    knn_data = movie_data[['id', 'runtime', 'star', 'imdb_score', 'tmdb_score']].copy()
-
-    x = knn_data.drop(columns=['star'])
-    y = knn_data['star'].values
+    x = movie_data[features].copy()
+    y = movie_data['star'].astype(int).to_numpy()
 
     movie_index = get_recommendation()
 
-    recommend_data = movie_data[['title', 'release_year', 'genre', 'streaming_service', 'star']].iloc[movie_index]
-    predict_data = movie_data[['id', 'runtime', 'imdb_score', 'tmdb_score']].iloc[movie_index]
+    recommend_data = movie_data[['title', 'release_year', 'genre', 'streaming_service', 'star']].iloc[
+        movie_index].copy()
+    predict_data = movie_data[features].iloc[movie_index].copy()
 
-    #dividiamo il dataset in due parti, 80% destinato al training e 20% destinato al testing
+    # Dividiamo il dataset in due parti, 80% destinato al training e 20% destinato al testing
     X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=1, stratify=y)
 
-    #traformiamo i dati per renderli adeguati
+    # trasformiamo i dati per renderli adeguati
     scaler = StandardScaler()
     X_train = scaler.fit_transform(X_train)
     X_test = scaler.transform(X_test)
-    predict_data = scaler.transform(predict_data)
+    predict_data_scaled = scaler.transform(predict_data)
 
-    knn = SearchingBestModelStats(X_train, X_test, y_train, y_test)
+    # Addestramento
+    knn_model = compare_and_select_best_model(X_train, X_test, y_train, y_test)
 
-    #alleniamo il modello sulla parte di training
-    knn.fit(X_train, y_train)
+    # Previsione sui nuovi dati raccomandati
+    star_prediction = knn_model.predict(predict_data_scaled)
 
-    #facciamo predizioni sui nuovi dati
-    star_prediction = knn.predict(predict_data)
-
+    # Output
     pd.set_option('display.max_columns', None)
-    pd.set_option('display.max_rows', None)
 
     recommend_data['star_prediction'] = star_prediction
 
-    print("\nEcco una lista di 5 film più simili a quello indicato, con una predizione sulla categoria star:\n", recommend_data, "\n")
-
-
-
+    print("\nEcco una lista di 5 film più simili a quello indicato, con una predizione sulla categoria star:\n")
+    print(recommend_data)
+    print("\n")
