@@ -119,7 +119,7 @@ Scegli una query da eseguire:
 
         elif menu_answer == '5':
             print("\nUscita dall'Ontologia in corso...")
-            break  # Esce dal programma (o torna al main principale)
+            break  # torna al main principale
 
         else:
             print("\nValore non valido! Digita un numero da 1 a 5.")

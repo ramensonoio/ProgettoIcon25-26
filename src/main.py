@@ -40,6 +40,5 @@ Seleziona un'operazione:
             print('\nErrore: Valore non valido! Digita 1, 2, 3 o 4.')
 
 
-# Punto di ingresso standard di Python
 if __name__ == "__main__":
     main()

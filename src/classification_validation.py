@@ -112,7 +112,7 @@ def compare_and_select_best_model(X_train, X_test, y_train, y_test):
 def main_recommender():
     # Caricamento Dati
     movie_data = pd.read_csv('../dataset/pre-processato/pre_processed_dataset.csv')
-    #creazione categoria star (media_voti)
+    # creazione categoria star (media_voti)
     movie_data['media_voti'] = (movie_data['imdb_score'] + movie_data['tmdb_score']) / 2
 
     # pd.cut divide i dati in fasce. I bin sono i limiti: [0, 5, 7.5, 10]

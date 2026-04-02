@@ -115,10 +115,9 @@ def get_recommendation():
     print("\n=== BENVENUTO NEL RECOMMENDER SYSTEM ===\n")
     print("Digita le caratteristiche del film \n su cui vuoi che si avvii la raccomandazione.")
 
-    # Salvo il percorso in una variabile per comodità e pulizia
+    # Salvo il percorso in una variabile
     dataset_path = '../dataset/pre-processato/pre_processed_dataset.csv'
 
-    # Questo ciclo serve SOLO per l'inserimento e la conferma
     while True:
         # 1. Chiedo i dati
         user_data = get_info()
@@ -133,15 +132,13 @@ def get_recommendation():
         # 4. Controllo la risposta
         if answer == 'y':
             print("\nPerfetto! Dati confermati.")
-            break  # Interrompe il ciclo while e procede oltre!
+            break
 
         elif answer == 'n':
             print("\nNessun problema, reinseriamo i dati da capo.")
-            # Non mettiamo 'break', quindi il ciclo ricomincia e richiama get_info()!
 
         else:
             print("\nRisposta non riconosciuta. Per favore, digita 'y' per confermare o 'n' per annullare.")
-            # Anche qui niente 'break', quindi gli richiederà i dati
 
     print("\nRicerca delle raccomandazioni in corso... Attendi...")
 
